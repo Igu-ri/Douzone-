@@ -156,10 +156,11 @@ def process_trades(trades):
     for t in trades:
         m = t["month"]
         d = t["day"]
-        stock = t["stock"]
-        qty = t["qty"]
-        price = t["price"]
-        net = t["net"]
+        type = t["type"]      # 구분, 적요명,내용,거래종류
+        stock = t["stock"]    # 종목명
+        qty = t["qty"]        # 수량
+        price = t["price"]    # 단가
+        net = t["net"]        # 거래금액
 
         # 🔥 정규화 적용
         ttype = normalize_trade_type(t["type"])
@@ -199,14 +200,14 @@ def process_trades(trades):
     
         # 이체입금
         elif ttype == "Credit":
-            memo = f"이체입금"
+            memo = f"{type}"
 
             rows.append(row(m,d,"차변",12500,"예치금","",stock,memo,net,0))
             rows.append(row(m,d,"대변",12500,"예치금","","미등록거래처",memo,0,net))
     
         # 이체출금
         elif ttype == "Debit":
-            memo = f"이체출금"
+            memo = f"{type}"
 
             rows.append(row(m,d,"차변",12500,"예치금","","미등록거래처",memo,0,net))
             rows.append(row(m,d,"대변",12500,"예치금","",stock,memo,net,0))
