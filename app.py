@@ -156,7 +156,7 @@ def parse_hantoo_sheet(df):
 # ─────────────────────────────
 # 전표 생성
 # ─────────────────────────────
-def process_trades(trades):
+def process_trades(trades, broker_code):
     rows = []
 
     for t in trades:
@@ -181,7 +181,7 @@ def process_trades(trades):
         if ttype == "SELL":
             memo = f"{stock}({qty}주*{price})매도"
 
-            rows.append(row(m,d,"차변",12500,"예치금","","",memo,net,0))
+            rows.append(row(m,d,"차변",12500,"예치금",broker_code,"",memo,net,0))
             rows.append(row(m,d,"대변",10700,"단기매매증권","",stock,memo,0,qty*price))
 
         # 매수
@@ -191,13 +191,13 @@ def process_trades(trades):
 
             rows.append(row(m,d,"차변",10700,"단기매매증권","",stock,memo,cost,0))
             rows.append(row(m,d,"차변",82800,"증권수수료","",stock,"매수수수료",fee,0))
-            rows.append(row(m,d,"대변",12500,"예치금","","",memo,0,cost-fee))
+            rows.append(row(m,d,"대변",12500,"예치금",broker_code,"",memo,0,cost-fee))
 
         # 예탁금이용료
         elif ttype == "INTEREST":
             memo = "예탁금이용료"
         
-            rows.append(row(m,d,"차변",12500,"예치금","","",memo,net,0))
+            rows.append(row(m,d,"차변",12500,"예치금",broker_code,"",memo,net,0))
             rows.append(row(m,d,"대변",42000,"이자수익(금융)","",stock,memo,0,net))
 
         # 공모주입고
@@ -212,7 +212,7 @@ def process_trades(trades):
         elif ttype == "Credit":
             memo = f"{type}"
 
-            rows.append(row(m,d,"차변",12500,"예치금","",stock,memo,net,0))
+            rows.append(row(m,d,"차변",12500,"예치금",broker_code,"",memo,net,0))
             rows.append(row(m,d,"대변",12500,"예치금","","미등록거래처",memo,0,net))
     
         # 이체출금
@@ -220,7 +220,7 @@ def process_trades(trades):
             memo = f"{type}"
 
             rows.append(row(m,d,"차변",12500,"예치금","","미등록거래처",memo,0,net))
-            rows.append(row(m,d,"대변",12500,"예치금","",stock,memo,net,0))
+            rows.append(row(m,d,"대변",12500,"예치금",broker_code,"",memo,net,0))
     return rows
 
 # ─────────────────────────────
@@ -262,6 +262,10 @@ def create_excel(rows):
 # ─────────────────────────────
 # UI
 # ─────────────────────────────
+# 🔥 거래처코드 (사용자 입력)
+broker_code = st.text_input("증권사 거래처코드", value="")
+
+# 🔥 엑셀 파일 업로드
 uploaded = st.file_uploader("엑셀 업로드", type=["xlsx"])
 
 if uploaded:
@@ -280,7 +284,7 @@ if uploaded:
             trades = parse_hantoo_sheet(df)
             all_trades.extend(trades)
 
-        rows = process_trades(all_trades)
+        rows = process_trades(all_trades,broker_code)
 
         if not rows:
             st.error("❌ 변환 데이터 없음")
