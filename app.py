@@ -323,7 +323,7 @@ if uploaded:
             trades = parse_hantoo_sheet(df)
             all_trades.extend(trades)
 
-        rows = process_trades(all_trades,broker_code)
+        rows = process_trades(all_trades, broker_map, broker_code)
 
         if not rows:
             st.error("❌ 변환 데이터 없음")
