@@ -69,18 +69,43 @@ def normalize_trade_type(ttype):
 # row (엑셀 10컬럼 기준)
 # ─────────────────────────────
 def row(m, d, div, acct_code, acct_name, cp_code, cp_name, memo, dr, cr):
-    return [
-        m, d, div,
-        acct_code,
-        acct_name,
-        cp_code,
-        cp_name,
-        memo,
-        dr,
-        cr
-    ]
+     return [m, d, div, acct_code, acct_name, cp_code, cp_name, memo, dr, cr]
+    
+# ─────────────────────────────
+#  1. 거래처 매핑 로딩 (신규)
+# ─────────────────────────────
+def load_broker_map(file):
+    if file is None:
+        return {}
+
+    df = pd.read_excel(file)
+
+    # A열 = 거래처코드 / B열 = 거래처명 (고정)
+    return dict(zip(df.iloc[:, 1].astype(str), df.iloc[:, 0].astype(str)))
+
+# ─────────────────────────────
+# ✔ 2. 거래처 정보 반환 (신규)
+# ─────────────────────────────
+def get_broker_info(stock, broker_map):
+
+    if stock in broker_map:
+        return broker_map[stock], stock
+    else:
+        return "", stock   # 미매핑
 
 
+# ─────────────────────────────
+# 🔥 거래처 정보 반환 (핵심)
+# ─────────────────────────────
+def get_broker_info(stock, broker_map):
+
+    if stock in broker_map:
+        return broker_map[stock], stock   # ✔ 매핑됨
+    else:
+        return "", stock                  # ❗미매핑 → 코드 없음 + 이름은 종목명
+
+
+    
 # ─────────────────────────────
 # HANTOO 파서 (자동 컬럼 매칭)
 # ─────────────────────────────
@@ -151,12 +176,17 @@ def parse_hantoo_sheet(df):
             continue
 
     return trades
-
+    
+# ─────────────────────────────
+# 🔥 거래처 자동 매핑 함수
+# ─────────────────────────────
+def get_broker_code(stock, broker_map, default_code):
+    return broker_map.get(stock, default_code)
 
 # ─────────────────────────────
 # 전표 생성
 # ─────────────────────────────
-def process_trades(trades, broker_code):
+def process_trades(trades, broker_map, broker_code):
     rows = []
 
     for t in trades:
@@ -176,21 +206,24 @@ def process_trades(trades, broker_code):
 
         if not ttype:
             continue
+            
+        # ✔ 거래처 매핑 적용
+        cp_code, cp_name = get_broker_info(stock, broker_map)
 
         # 매도
         if ttype == "SELL":
             memo = f"{stock}({qty}주*{price})매도"
 
             rows.append(row(m,d,"차변",12500,"예치금",broker_code,"",memo,net,0))
-            rows.append(row(m,d,"대변",10700,"단기매매증권","",stock,memo,0,qty*price))
+            rows.append(row(m,d,"대변",10700,"단기매매증권","cp_code",stock,memo,0,qty*price))
 
         # 매수
         elif ttype == "BUY":
             cost = qty * price
             memo = f"{stock}({qty}주*{price})매수"
 
-            rows.append(row(m,d,"차변",10700,"단기매매증권","",stock,memo,cost,0))
-            rows.append(row(m,d,"차변",82800,"증권수수료","",stock,"매수수수료",fee,0))
+            rows.append(row(m,d,"차변",10700,"단기매매증권","cp_code",stock,memo,cost,0))
+            rows.append(row(m,d,"차변",82800,"증권수수료","cp_code",stock,"매수수수료",fee,0))
             rows.append(row(m,d,"대변",12500,"예치금",broker_code,"",memo,0,cost-fee))
 
         # 예탁금이용료
@@ -198,15 +231,15 @@ def process_trades(trades, broker_code):
             memo = "예탁금이용료"
         
             rows.append(row(m,d,"차변",12500,"예치금",broker_code,"",memo,net,0))
-            rows.append(row(m,d,"대변",42000,"이자수익(금융)","",stock,memo,0,net))
+            rows.append(row(m,d,"대변",42000,"이자수익(금융)","broker_code",stock,memo,0,net))
 
         # 공모주입고
         elif ttype == "StockCredit":
             cost = qty * price
             memo = f"{stock}({qty}주*{price})입고"
 
-            rows.append(row(m,d,"차변",10700,"단기매매증권","",stock,memo,cost,0))
-            rows.append(row(m,d,"대변",13100,"선급금","",stock,memo,0,cost))
+            rows.append(row(m,d,"차변",10700,"단기매매증권","cp_code",stock,memo,cost,0))
+            rows.append(row(m,d,"대변",13100,"선급금","cp_code",stock,memo,0,cost))
     
         # 이체입금
         elif ttype == "Credit":
@@ -262,7 +295,10 @@ def create_excel(rows):
 # ─────────────────────────────
 # UI
 # ─────────────────────────────
-# 🔥 거래처코드 (사용자 입력)
+# 🔥 거래처 매핑 엑셀
+broker_file = st.file_uploader("거래처 매핑 엑셀 (이름 / 코드)", type=["xlsx"])
+
+# 🔥 거래처코드(금융사) (사용자 입력)
 broker_code = st.text_input("증권사 거래처코드", value="")
 
 # 🔥 엑셀 파일 업로드
@@ -270,6 +306,9 @@ uploaded = st.file_uploader("엑셀 업로드", type=["xlsx"])
 
 if uploaded:
     if st.button("변환 실행"):
+
+        # 🔥 매핑 로딩
+        broker_map = load_broker_map(broker_file)
 
         tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx")
         tmp.write(uploaded.read())
