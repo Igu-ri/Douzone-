@@ -111,7 +111,7 @@ def parse_hantoo_sheet(df):
     c_stock = find_col(["종목","종목명","종목명(거래상대명)"])
     c_qty   = find_col(["수량"])
     c_price = find_col(["단가","가격"])
-    c_net   = find_col(["금액","거래금액","입출금액"])
+    c_net   = find_col(["금액","거래금액","입출금액","입금/입고/매도","출금/출고/매수"])
 
     trades = []
 
