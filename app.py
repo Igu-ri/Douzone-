@@ -107,13 +107,13 @@ def parse_hantoo_sheet(df):
         return None
     
     c_date  = find_col(["거래일","거래일자","일자","날짜"])
-    c_type  = find_col(["구분","적요명","내용","거래종류","거래명"])
-    c_stock = find_col(["종목","종목명","종목명(거래상대명)"])
+    c_type  = find_col(["구분","적요명","내용","거래종류","거래명","거래구분","거래종류"])
+    c_stock = find_col(["종목","종목명","종목명(거래상대명)","종목명(상대처)"])
     c_qty   = find_col(["수량","거래수량"])
     c_price = find_col(["단가","가격","거래단가"])
-    c_net   = find_col(["금액","거래금액","입출금액","입금/입고/매도","출금/출고/매수"])
+    c_net   = find_col(["금액","거래금액","입출금액","입금/입고/매도","출금/출고/매수","거래대금"])
     c_fee   = find_col(["수수료/Fee","수수료"])
-    c_tax   = find_col(["tax","세금","제세금"])
+    c_tax   = find_col(["tax","세금","제세금","거래세/농특세","거래세"])
 
     trades = []
 
