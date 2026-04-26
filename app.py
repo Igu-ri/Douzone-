@@ -107,11 +107,13 @@ def parse_hantoo_sheet(df):
         return None
     
     c_date  = find_col(["거래일","거래일자","일자","날짜"])
-    c_type  = find_col(["구분","적요명","내용","거래종류"])
+    c_type  = find_col(["구분","적요명","내용","거래종류","거래명"])
     c_stock = find_col(["종목","종목명","종목명(거래상대명)"])
-    c_qty   = find_col(["수량"])
-    c_price = find_col(["단가","가격"])
+    c_qty   = find_col(["수량","거래수량"])
+    c_price = find_col(["단가","가격","거래단가"])
     c_net   = find_col(["금액","거래금액","입출금액","입금/입고/매도","출금/출고/매수"])
+    c_fee   = find_col(["수수료/Fee","수수료"])
+    c_tax   = find_col(["tax","세금","제세금"])
 
     trades = []
 
@@ -127,6 +129,8 @@ def parse_hantoo_sheet(df):
             qty = to_int(r.get(c_qty))
             price = to_int(r.get(c_price))
             net = to_int(r.get(c_net))
+            fee = to_int(r.get(c_fee))
+            tax = to_int(r.get(c_tax))
 
             if not trade_type:
                 continue
@@ -138,7 +142,9 @@ def parse_hantoo_sheet(df):
                 "stock": stock,
                 "qty": qty,
                 "price": price,
-                "net": net
+                "net": net,
+                "fee": fee,
+                "tax": tax
             })
 
         except:
@@ -160,6 +166,8 @@ def process_trades(trades):
         qty = t["qty"]
         price = t["price"]
         net = t["net"]
+        fee = t["fee"]
+        tax = t["tax"]
 
         # 🔥 정규화 적용
         ttype = normalize_trade_type(t["type"])
@@ -180,7 +188,8 @@ def process_trades(trades):
             memo = f"{stock}({qty}주*{price})매수"
 
             rows.append(row(m,d,"차변",10700,"단기매매증권","",stock,memo,cost,0))
-            rows.append(row(m,d,"대변",12500,"예치금","","",memo,0,cost))
+            rows.append(row(m,d,"차변",82800,"증권수수료","",stock,"매수수수료",fee,0))
+            rows.append(row(m,d,"대변",12500,"예치금","","",memo,0,cost-fee))
 
         # 예탁금이용료
         elif ttype == "INTEREST":
