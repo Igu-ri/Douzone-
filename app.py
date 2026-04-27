@@ -80,13 +80,14 @@ def load_broker_map(file):
 
     df = pd.read_excel(file)
 
-    # A열 = 거래처코드 / B열 = 거래처명 (고정)
-    return dict(
-                zip(df.iloc[:, 0].astype(str).str.strip(),  # A
-                    df.iloc[:, 1].astype(str).str.strip()   # B
-                    )
-                )
-
+    # 🔥 종목명 → (코드, 거래처명)
+    return {
+        str(name).strip(): (
+            str(code).strip(),
+            str(name).strip()
+        )
+        for code, name in zip(df.iloc[:, 0], df.iloc[:, 1])
+    }
 # ─────────────────────────────
 # 🔥 거래처 정보 반환
 # ─────────────────────────────
@@ -208,15 +209,15 @@ def process_trades(trades, broker_map, broker_code):
             memo = f"{stock}({qty}주*{price})매도"
 
             rows.append(row(m,d,"차변",12500,"예치금",broker_code,"",memo,net,0))
-            rows.append(row(m,d,"대변",10700,"단기매매증권",cp_code,stock,memo,0,qty*price))
+            rows.append(row(m,d,"대변",10700,"단기매매증권",cp_code,cp_name,memo,0,qty*price))
 
         # 매수
         elif ttype == "BUY":
             cost = qty * price
             memo = f"{stock}({qty}주*{price})매수"
 
-            rows.append(row(m,d,"차변",10700,"단기매매증권",cp_code,stock,memo,cost,0))
-            rows.append(row(m,d,"차변",82800,"증권수수료",cp_code,stock,"매수수수료",fee,0))
+            rows.append(row(m,d,"차변",10700,"단기매매증권",cp_code,cp_name,memo,cost,0))
+            rows.append(row(m,d,"차변",82800,"증권수수료",cp_code,cp_name,"매수수수료",fee,0))
             rows.append(row(m,d,"대변",12500,"예치금",broker_code,"",memo,0,cost-fee))
 
         # 예탁금이용료
@@ -231,8 +232,8 @@ def process_trades(trades, broker_map, broker_code):
             cost = qty * price
             memo = f"{stock}({qty}주*{price})입고"
 
-            rows.append(row(m,d,"차변",10700,"단기매매증권",cp_code,stock,memo,cost,0))
-            rows.append(row(m,d,"대변",13100,"선급금",cp_code,stock,memo,0,cost))
+            rows.append(row(m,d,"차변",10700,"단기매매증권",cp_code,cp_name,memo,cost,0))
+            rows.append(row(m,d,"대변",13100,"선급금",cp_code,cp_name,memo,0,cost))
     
         # 이체입금
         elif ttype == "Credit":
