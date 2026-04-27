@@ -72,7 +72,17 @@ def row(m, d, div, acct_code, acct_name, cp_code, cp_name, memo, dr, cr):
      return [m, d, div, acct_code, acct_name, cp_code, cp_name, memo, dr, cr]
     
 # ─────────────────────────────
-#  1. 거래처 매핑 로딩 (신규)
+# 🔥 수정 1: 종목명 추출 함수 추가
+# ─────────────────────────────
+def extract_stock_name(name):
+    name = str(name).replace(" ", "").strip()
+    if "#" in name:
+        return name.split("#")[-1]
+    return name
+
+
+# ─────────────────────────────
+# 🔥 수정 2: 매핑 구조 변경 (핵심)
 # ─────────────────────────────
 def load_broker_map(file):
     if file is None:
@@ -80,23 +90,26 @@ def load_broker_map(file):
 
     df = pd.read_excel(file)
 
-    # 🔥 종목명 → (코드, 거래처명)
     return {
-        str(name).strip(): (
-            str(code).strip(),
-            str(name).strip()
+        extract_stock_name(name): (   # 🔥 key = 종목명만
+            str(code).strip(),       # 거래처코드
+            str(name).strip()        # 원본 거래처명 유지
         )
         for code, name in zip(df.iloc[:, 0], df.iloc[:, 1])
     }
+
+
 # ─────────────────────────────
-# 🔥 거래처 정보 반환
+# 🔥 수정 3: 매핑 조회 방식 변경
 # ─────────────────────────────
 def get_broker_info(stock, broker_map):
 
-    if stock in broker_map:
-        return broker_map[stock], stock   # ✔ 매핑됨
+    key = extract_stock_name(stock)  # 🔥 동일한 기준으로 변환
+
+    if key in broker_map:
+        return broker_map[key]   # (code, name)
     else:
-        return "", stock                  # ❗미매핑 → 코드 없음 + 이름은 종목명
+        return "", stock         # 미매핑
 
 
     
@@ -188,25 +201,30 @@ def process_trades(trades, broker_map, broker_code):
         d = t["day"]
         type = t["type"]      # 구분, 적요명,내용,거래종류
         stock = t["stock"]    # 종목명
+        stock_name = extract_stock_name(stock)
+        ttype = normalize_trade_type(t["type"])
         qty = t["qty"]        # 수량
         price = t["price"]    # 단가
         net = t["net"]        # 거래금액
         fee = t["fee"]        # 거래수수료
         tax = t["tax"]        # 
 
-
-        # 🔥 정규화 적용
+        # 🔥 여기!!!! (무조건 이 위치)
         ttype = normalize_trade_type(t["type"])
 
         if not ttype:
             continue
-            
-        # ✔ 거래처 매핑 적용
-        cp_code, cp_name = get_broker_info(stock, broker_map)
+    
+        
+        # 🔥 매핑 적용
+        cp_code, cp_name = get_broker_info(stock_name, broker_map)
+
+        # 🔥 디버깅 (필요하면 주석 해제)
+        # st.write("매핑확인:", stock, "→", cp_code, cp_name)
 
         # 매도
         if ttype == "SELL":
-            memo = f"{stock}({qty}주*{price})매도"
+            memo = f"{stock_name}({qty}주*{price})매도"
 
             rows.append(row(m,d,"차변",12500,"예치금",broker_code,"",memo,net,0))
             rows.append(row(m,d,"대변",10700,"단기매매증권",cp_code,cp_name,memo,0,qty*price))
@@ -214,7 +232,7 @@ def process_trades(trades, broker_map, broker_code):
         # 매수
         elif ttype == "BUY":
             cost = qty * price
-            memo = f"{stock}({qty}주*{price})매수"
+            memo = f"{stock_name}({qty}주*{price})매수"
 
             rows.append(row(m,d,"차변",10700,"단기매매증권",cp_code,cp_name,memo,cost,0))
             rows.append(row(m,d,"차변",82800,"증권수수료",cp_code,cp_name,"매수수수료",fee,0))
@@ -230,7 +248,7 @@ def process_trades(trades, broker_map, broker_code):
         # 공모주입고
         elif ttype == "StockCredit":
             cost = qty * price
-            memo = f"{stock}({qty}주*{price})입고"
+            memo = f"{stock_name}({qty}주*{price})입고"
 
             rows.append(row(m,d,"차변",10700,"단기매매증권",cp_code,cp_name,memo,cost,0))
             rows.append(row(m,d,"대변",13100,"선급금",cp_code,cp_name,memo,0,cost))
