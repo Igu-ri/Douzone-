@@ -317,16 +317,18 @@ broker_code = st.text_input("증권사 거래처코드", value="")
 uploaded = st.file_uploader("엑셀 업로드", type=["xlsx"])
 
 if uploaded:
+
     if st.button("변환 실행"):
 
-        # 🔥 매핑 로딩
-        broker_map = load_broker_map(broker_file)
+        broker_map = load_broker_map(broker_file) if broker_file else {}
 
-        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx")
-        tmp.write(uploaded.read())
-        tmp.close()
+        file_bytes = uploaded.getvalue()
 
-        xl = pd.ExcelFile(tmp.name)
+        try:
+            xl = pd.ExcelFile(io.BytesIO(file_bytes))
+        except Exception as e:
+            st.error(f"엑셀 읽기 실패: {e}")
+            st.stop()
 
         all_trades = []
 
@@ -334,6 +336,8 @@ if uploaded:
             df = pd.read_excel(xl, sheet_name=sheet, header=None)
             trades = parse_hantoo_sheet(df)
             all_trades.extend(trades)
+
+        st.write("총 trades:", len(all_trades))
 
         rows = process_trades(all_trades, broker_map, broker_code)
 
