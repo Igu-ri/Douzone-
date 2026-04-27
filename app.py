@@ -307,8 +307,13 @@ def create_excel(rows):
 # ─────────────────────────────
 # UI
 # ─────────────────────────────
+# 🔥 거래처 매핑 엑셀
 broker_file = st.file_uploader("거래처 매핑")
+
+# 🔥 거래처코드(금융사) (사용자 입력)
 broker_code = st.text_input("증권사 코드")
+
+# 🔥 엑셀 파일 업로드
 uploaded = st.file_uploader("엑셀")
 
 if uploaded:
@@ -341,10 +346,10 @@ if uploaded:
 broker_file = st.file_uploader("거래처 매핑 엑셀 (이름 / 코드)", type=["xlsx"])
 
 # 🔥 거래처코드(금융사) (사용자 입력)
-broker_code = st.text_input("증권사 거래처코드", value="")
+broker_code = st.text_input("증권사 거래처코드")
 
 # 🔥 엑셀 파일 업로드
-uploaded = st.file_uploader("엑셀 업로드", type=["xlsx"])
+uploaded = st.file_uploader("엑셀 업로드")
 
 if uploaded:
 
