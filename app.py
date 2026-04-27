@@ -308,41 +308,6 @@ def create_excel(rows):
 # UI
 # ─────────────────────────────
 # 🔥 거래처 매핑 엑셀
-broker_file = st.file_uploader("거래처 매핑")
-
-# 🔥 거래처코드(금융사) (사용자 입력)
-broker_code = st.text_input("증권사 코드")
-
-# 🔥 엑셀 파일 업로드
-uploaded = st.file_uploader("엑셀")
-
-if uploaded:
-
-    if st.button("변환"):
-
-        broker_map = load_broker_map(broker_file)
-
-        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx")
-        tmp.write(uploaded.read())
-        tmp.close()
-
-        df = pd.read_excel(tmp.name, header=None)
-
-        trades = parse_trades(df)
-
-        st.write("파싱 결과:", len(trades))
-
-        rows = process_trades(trades, broker_map, broker_code)
-
-        if not rows:
-            st.error("0건")
-        else:
-            out = create_excel(rows)
-
-            st.download_button("다운로드", out, "result.xlsx")
-
-# ───────────────────────────────────────────────────────────────────────────────────────
-# 🔥 거래처 매핑 엑셀
 broker_file = st.file_uploader("거래처 매핑 엑셀 (이름 / 코드)", type=["xlsx"])
 
 # 🔥 거래처코드(금융사) (사용자 입력)
