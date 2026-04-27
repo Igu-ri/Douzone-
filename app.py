@@ -81,21 +81,14 @@ def load_broker_map(file):
     df = pd.read_excel(file)
 
     # A열 = 거래처코드 / B열 = 거래처명 (고정)
-    return dict(zip(df.iloc[:, 1].astype(str), df.iloc[:, 0].astype(str)))
+    return dict(
+                zip(df.iloc[:, 0].astype(str).str.strip(),  # A
+                    df.iloc[:, 1].astype(str).str.strip()   # B
+                    )
+                )
 
 # ─────────────────────────────
-# ✔ 2. 거래처 정보 반환 (신규)
-# ─────────────────────────────
-def get_broker_info(stock, broker_map):
-
-    if stock in broker_map:
-        return broker_map[stock], stock
-    else:
-        return "", stock   # 미매핑
-
-
-# ─────────────────────────────
-# 🔥 거래처 정보 반환 (핵심)
+# 🔥 거래처 정보 반환
 # ─────────────────────────────
 def get_broker_info(stock, broker_map):
 
@@ -149,7 +142,7 @@ def parse_hantoo_sheet(df):
                 continue
 
             trade_type = clean(r.get(c_type))
-            stock = clean(r.get(c_stock))
+            stock = clean(r.get(c_stock)).strip()
 
             qty = to_int(r.get(c_qty))
             price = to_int(r.get(c_price))
