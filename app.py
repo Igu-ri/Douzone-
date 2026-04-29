@@ -317,6 +317,7 @@ interest_income = st.number_input("이자수익(금융)", min_value=0, max_value
 # 🔥 배당금수익 (사용자 입력)
 dividend_income = st.number_input("배당금수익", min_value=0, max_value=99999, step=1, help="예: 41800")
 
+
 # 🔥 거래처 매핑 엑셀
 broker_file = st.file_uploader("거래처 매핑 엑셀 (이름 / 코드)", type=["xlsx"])
 
