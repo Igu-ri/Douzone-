@@ -309,19 +309,20 @@ def create_excel(rows):
 # UI
 # ─────────────────────────────
 # 🔥 예치금 (사용자 입력)
-st.text_input("예치금", placeholder="예: 12500")
+deposit = st.number_input("예치금", min_value=0, max_value=99999, step=1, help="예: 12500")
 # 🔥 단기매매증권 (사용자 입력)
-short_inv = st.text_input("단기매매증권", placeholder="예: 10700")
+short_inv = st.number_input("단기매매증권", min_value=0, max_value=99999, step=1, help="예: 10700")
 # 🔥 이자수익(금융) (사용자 입력)
-interest_income = st.text_input("이자수익(금융)", placeholder="예: 42000")
+interest_income = st.number_input("이자수익(금융)", min_value=0, max_value=99999, step=1, help="예: 42000")
 # 🔥 배당금수익 (사용자 입력)
-dividend_income = st.text_input("배당금수익", placeholder="예: 41800")
+dividend_income = st.number_input("배당금수익", min_value=0, max_value=99999, step=1, help="예: 41800")
+
 
 # 🔥 거래처 매핑 엑셀
 broker_file = st.file_uploader("거래처 매핑 엑셀 (이름 / 코드)", type=["xlsx"])
 
 # 🔥 거래처코드(금융사) (사용자 입력)
-broker_code = st.text_input("증권사 거래처코드")
+broker_code = st.number_input("증권사코드", min_value=0, max_value=99999, step=1, help="예: 98001")
 
 # 🔥 엑셀 파일 업로드
 uploaded = st.file_uploader("엑셀 업로드")
