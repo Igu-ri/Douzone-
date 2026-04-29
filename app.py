@@ -313,9 +313,9 @@ st.text_input("예치금", placeholder="예: 12500")
 # 🔥 단기매매증권 (사용자 입력)
 short_inv = st.text_input("단기매매증권", placeholder="예: 10700")
 # 🔥 이자수익(금융) (사용자 입력)
-interest_income = st.text_input("이자수익(금융)", placeholder="예: 42000"))
+interest_income = st.text_input("이자수익(금융)", placeholder="예: 42000")
 # 🔥 배당금수익 (사용자 입력)
-dividend_income = st.text_input("배당금수익", placeholder="예: 41800"))
+dividend_income = st.text_input("배당금수익", placeholder="예: 41800")
 
 # 🔥 거래처 매핑 엑셀
 broker_file = st.file_uploader("거래처 매핑 엑셀 (이름 / 코드)", type=["xlsx"])
