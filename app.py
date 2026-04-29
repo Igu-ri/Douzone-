@@ -193,7 +193,8 @@ def get_broker_code(stock, broker_map, default_code):
 # ─────────────────────────────
 # 전표 생성
 # ─────────────────────────────
-def process_trades(trades, broker_map, broker_code):
+#                                      거래처코드,   예치금,  단기매매증권,  이자수익,        배당금수익
+def process_trades(trades, broker_map, broker_code, deposit, short_inv, interest_income, dividend_income):
     rows = []
 
     for t in trades:
@@ -201,13 +202,13 @@ def process_trades(trades, broker_map, broker_code):
         d = t["day"]
         type = t["type"]      # 구분, 적요명,내용,거래종류
         stock = t["stock"]    # 종목명
-        stock_name = extract_stock_name(stock)
+        stock_name = extract_stock_name(stock)    #매핑용 거래처명
         ttype = normalize_trade_type(t["type"])
         qty = t["qty"]        # 수량
         price = t["price"]    # 단가
         net = t["net"]        # 거래금액
         fee = t["fee"]        # 거래수수료
-        tax = t["tax"]        # 
+        tax = t["tax"]        # 세금과공과
 
         # 🔥 여기!!!! (무조건 이 위치)
         ttype = normalize_trade_type(t["type"])
@@ -226,46 +227,46 @@ def process_trades(trades, broker_map, broker_code):
         if ttype == "SELL":
             memo = f"{stock_name}({qty}주*{price})매도"
 
-            rows.append(row(m,d,"차변",12500,"예치금",broker_code,"",memo,net,0))
-            rows.append(row(m,d,"대변",10700,"단기매매증권",cp_code,cp_name,memo,0,qty*price))
+            rows.append(row(m,d,"차변",deposit,"예치금",broker_code,"",memo,net,0))
+            rows.append(row(m,d,"대변",short_inv,"단기매매증권",cp_code,cp_name,memo,0,qty*price))
 
         # 매수
         elif ttype == "BUY":
             cost = qty * price
             memo = f"{stock_name}({qty}주*{price})매수"
 
-            rows.append(row(m,d,"차변",10700,"단기매매증권",cp_code,cp_name,memo,cost,0))
+            rows.append(row(m,d,"차변",short_inv,"단기매매증권",cp_code,cp_name,memo,cost,0))
             rows.append(row(m,d,"차변",82800,"증권수수료",cp_code,cp_name,"매수수수료",fee,0))
-            rows.append(row(m,d,"대변",12500,"예치금",broker_code,"",memo,0,cost-fee))
+            rows.append(row(m,d,"대변",deposit,"예치금",broker_code,"",memo,0,cost-fee))
 
         # 예탁금이용료
         elif ttype == "INTEREST":
             memo = "예탁금이용료"
         
-            rows.append(row(m,d,"차변",12500,"예치금",broker_code,"",memo,net,0))
-            rows.append(row(m,d,"대변",42000,"이자수익(금융)",broker_code,stock,memo,0,net))
+            rows.append(row(m,d,"차변",deposit,"예치금",broker_code,"",memo,net,0))
+            rows.append(row(m,d,"대변",interest_income,"이자수익(금융)",broker_code,stock,memo,0,net))
 
         # 공모주입고
         elif ttype == "StockCredit":
             cost = qty * price
             memo = f"{stock_name}({qty}주*{price})입고"
 
-            rows.append(row(m,d,"차변",10700,"단기매매증권",cp_code,cp_name,memo,cost,0))
+            rows.append(row(m,d,"차변",short_inv,"단기매매증권",cp_code,cp_name,memo,cost,0))
             rows.append(row(m,d,"대변",13100,"선급금",cp_code,cp_name,memo,0,cost))
     
         # 이체입금
         elif ttype == "Credit":
             memo = f"{type}"
 
-            rows.append(row(m,d,"차변",12500,"예치금",broker_code,"",memo,net,0))
-            rows.append(row(m,d,"대변",12500,"예치금","","미등록거래처",memo,0,net))
+            rows.append(row(m,d,"차변",deposit,"예치금",broker_code,"",memo,net,0))
+            rows.append(row(m,d,"대변",deposit,"예치금","","미등록거래처",memo,0,net))
     
         # 이체출금
         elif ttype == "Debit":
             memo = f"{type}"
 
-            rows.append(row(m,d,"차변",12500,"예치금","","미등록거래처",memo,0,net))
-            rows.append(row(m,d,"대변",12500,"예치금",broker_code,"",memo,net,0))
+            rows.append(row(m,d,"차변",deposit,"예치금","","미등록거래처",memo,0,net))
+            rows.append(row(m,d,"대변",deposit,"예치금",broker_code,"",memo,net,0))
     return rows
 
 # ─────────────────────────────
@@ -307,6 +308,15 @@ def create_excel(rows):
 # ─────────────────────────────
 # UI
 # ─────────────────────────────
+# 🔥 예치금 (사용자 입력)
+st.text_input("예치금", placeholder="예: 12500")
+# 🔥 단기매매증권 (사용자 입력)
+short_inv = st.text_input("단기매매증권", placeholder="예: 10700")
+# 🔥 이자수익(금융) (사용자 입력)
+interest_income = st.text_input("이자수익(금융)", placeholder="예: 42000"))
+# 🔥 배당금수익 (사용자 입력)
+dividend_income = st.text_input("배당금수익", placeholder="예: 41800"))
+
 # 🔥 거래처 매핑 엑셀
 broker_file = st.file_uploader("거래처 매핑 엑셀 (이름 / 코드)", type=["xlsx"])
 
@@ -338,8 +348,8 @@ if uploaded:
             all_trades.extend(trades)
 
         st.write("총 trades:", len(all_trades))
-
-        rows = process_trades(all_trades, broker_map, broker_code)
+#                                                      거래처코드,   예치금,  단기매매증권,  이자수익,        배당금수익
+        rows = process_trades(all_trades, broker_map, broker_code, deposit, short_inv, interest_income, dividend_income)
 
         if not rows:
             st.error("❌ 변환 데이터 없음")
