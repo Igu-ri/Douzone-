@@ -395,6 +395,8 @@ if uploaded:
             all_trades.extend(trades)
 
         st.write("총 trades:", len(all_trades))
+        # 미리보기!!
+        st.write(all_trades)
 #                                                      거래처코드,   예치금,  단기매매증권,  이자수익,        배당금수익
         rows = process_trades(all_trades, broker_map, broker_code, deposit, short_inv, interest_income, dividend_income)
 
