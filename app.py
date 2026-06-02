@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import openpyxl
 import io, tempfile, re
+import traceback                        # 파이썬 에러 찾기
 from openpyxl.styles import PatternFill # 엑셀 헤더 노란색으로 칠하기
 
 st.set_page_config(page_title="더존 전표 변환기", page_icon="📊", layout="wide")
@@ -116,7 +117,7 @@ def get_broker_info(stock, broker_map):
 # ─────────────────────────────
 # HANTOO 파서 (자동 컬럼 매칭)
 # ─────────────────────────────
-# ✅ [수정] HANTOO 파서: 위치 기반 컬럼 매핑
+# ✅ HANTOO 파서: 위치 기반 컬럼 매핑
 #    원본과 달라진 점:
 #    1. data_start를 날짜 등장 행으로 동적 감지
 #       → 헤더가 1줄이든 2줄이든 3줄이든 자동 대응
@@ -138,7 +139,7 @@ def parse_hantoo_sheet(df):
     if header_row is None:
         return []
  
-    # ✅ ② 날짜가 처음 등장하는 행 = 데이터 시작점 (동적 감지)
+    # 날짜가 처음 등장하는 행 = 데이터 시작점 (동적 감지)
     #       헤더 1줄 → data_start = header_row + 1
     #       헤더 2줄 → data_start = header_row + 2
     #       헤더 3줄 → data_start = header_row + 3  자동 처리
@@ -152,7 +153,7 @@ def parse_hantoo_sheet(df):
     if data_start is None:
         return []
  
-    # ✅ ③ 헤더 줄 전체 스캔 → { 키워드: 컬럼위치 } 매핑
+    # 헤더 줄 전체 스캔 → { 키워드: 컬럼위치 } 매핑
     #       헤더가 몇 줄이든, 어느 줄에 키워드가 있든 위치로 기억
     col_map = {}
     for h_idx in range(header_row, data_start):
@@ -161,7 +162,7 @@ def parse_hantoo_sheet(df):
             if v and v != "nan":
                 col_map[v] = col_idx
  
-    # ✅ ④ 키워드로 컬럼 위치(인덱스) 찾기
+    # 키워드로 컬럼 위치(인덱스) 찾기
     def find_col_idx(keys):
         for k in keys:
             for col_name, idx in col_map.items():
@@ -178,7 +179,7 @@ def parse_hantoo_sheet(df):
     ci_fee   = find_col_idx(["수수료/Fee", "수수료"])
     ci_tax   = find_col_idx(["tax", "세금", "제세금", "거래세/농특세", "거래세"])
  
-    # ✅ ⑤ 날짜 없는 보조 데이터줄을 바로 위 행(buffer)에 병합
+    # 날짜 없는 보조 데이터줄을 바로 위 행(buffer)에 병합
     #       날짜 있는 행: 새 거래 시작 → buffer 교체
     #       날짜 없는 행: buffer의 빈 위치(None/""/0)만 채워넣기
     raw_rows = df.iloc[data_start:].reset_index(drop=True)
@@ -204,12 +205,12 @@ def parse_hantoo_sheet(df):
     if buffer is not None:
         merged_rows.append(buffer)
  
-    # ✅ ⑥ 컬럼명 대신 위치 인덱스로 값 꺼내기
+    # 컬럼명 대신 위치 인덱스로 값 꺼내기
     def get(r, ci):
         return r[ci] if ci is not None and ci < len(r) else None
  
     trades = []
-    for r in merged_rows:
+    for idx, r in enumerate(merged_rows):
         try:
             m, d = parse_date(get(r, ci_date))
             if not m:
@@ -231,8 +232,24 @@ def parse_hantoo_sheet(df):
                 "stock": stock, "qty": qty, "price": price,
                 "net": net, "fee": fee, "tax": tax
             })
-        except:
-            continue
+            
+        except Exception as e:
+
+        st.error(f"❌ parse_hantoo_sheet 오류")
+
+        st.write("행번호:", idx)
+
+        st.write("원본 데이터:")
+
+        st.write(r)
+
+        st.write("에러:")
+
+        st.write(str(e))
+
+        st.code(traceback.format_exc())
+
+        continue
  
     return trades
 
@@ -243,7 +260,7 @@ def parse_hantoo_sheet(df):
 def process_trades(trades, broker_map, broker_code, deposit, short_inv, interest_income, dividend_income):
     rows = []
 
-    for t in trades:
+    for idx, t in enumerate(trades):
         m = t["month"]
         d = t["day"]
         type = t["type"]      # 구분, 적요명,내용,거래종류
@@ -261,7 +278,24 @@ def process_trades(trades, broker_map, broker_code, deposit, short_inv, interest
 
         if not ttype:
             continue
-    
+
+        cp_code, cp_name = get_broker_info(stock_name, broker_map)
+
+        # 기존 로직 그대로
+
+    except Exception as e:
+
+        st.error(f"❌ process_trades 오류")
+
+        st.write("거래번호:", idx)
+
+        st.write("거래데이터:")
+
+        st.write(t)
+
+        st.write(str(e))
+
+        st.code(traceback.format_exc())
         
         # 🔥 매핑 적용
         cp_code, cp_name = get_broker_info(stock_name, broker_map)
@@ -384,8 +418,10 @@ if uploaded:
         try:
             xl = pd.ExcelFile(io.BytesIO(file_bytes))
         except Exception as e:
-            st.error(f"엑셀 읽기 실패: {e}")
-            st.stop()
+                st.error("❌ 엑셀 읽기 실패")
+                st.write(str(e))
+                st.code(traceback.format_exc())
+                st.stop()
 
         all_trades = []
 
@@ -400,6 +436,17 @@ if uploaded:
 #                                                      거래처코드,   예치금,  단기매매증권,  이자수익,        배당금수익
         rows = process_trades(all_trades, broker_map, broker_code, deposit, short_inv, interest_income, dividend_income)
 
+        preview_df = pd.DataFrame(rows,columns=["월","일","구분","계정과목코드","계정과목명","거래처코드",
+                                                "거래처명","적요명","차변","대변"]
+                                 )
+
+st.subheader("📋 전표 미리보기")
+
+st.dataframe(
+    preview_df,
+    use_container_width=True,
+    height=500
+)
         if not rows:
             st.error("❌ 변환 데이터 없음")
         else:
