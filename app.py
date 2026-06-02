@@ -72,7 +72,7 @@ def row(m, d, div, acct_code, acct_name, cp_code, cp_name, memo, dr, cr):
      return [m, d, div, acct_code, acct_name, cp_code, cp_name, memo, dr, cr]
     
 # ─────────────────────────────
-# 🔥 수정 1: 종목명 추출 함수 추가
+# 종목명 추출 함수 추가
 # ─────────────────────────────
 def extract_stock_name(name):
     name = str(name).replace(" ", "").strip()
@@ -82,7 +82,7 @@ def extract_stock_name(name):
 
 
 # ─────────────────────────────
-# 🔥 수정 2: 매핑 구조 변경 (핵심)
+# 거래처 조회
 # ─────────────────────────────
 def load_broker_map(file):
     if file is None:
@@ -100,7 +100,7 @@ def load_broker_map(file):
 
 
 # ─────────────────────────────
-# 🔥 수정 3: 매핑 조회 방식 변경
+# 매핑 조회 방식 변경
 # ─────────────────────────────
 def get_broker_info(stock, broker_map):
 
@@ -116,79 +116,125 @@ def get_broker_info(stock, broker_map):
 # ─────────────────────────────
 # HANTOO 파서 (자동 컬럼 매칭)
 # ─────────────────────────────
+# ✅ [수정] HANTOO 파서: 위치 기반 컬럼 매핑
+#    원본과 달라진 점:
+#    1. data_start를 날짜 등장 행으로 동적 감지
+#       → 헤더가 1줄이든 2줄이든 3줄이든 자동 대응
+#    2. 헤더 전체(header_row ~ data_start-1)를 스캔해서
+#       { 키워드: 컬럼위치 } col_map 생성
+#       → 컬럼명 대신 인덱스로 값 접근 (ci_date, ci_type, ...)
+#    3. 날짜 없는 보조 데이터줄을 buffer에 병합
+#       → 거래단가/세금 등 2번째 줄 값도 누락 없이 흡수
+# ─────────────────────────────
 def parse_hantoo_sheet(df):
+ 
+    # ① "거래일" 키워드가 있는 첫 번째 헤더 행 찾기
     header_row = None
-
     for i in range(min(15, len(df))):
-        row_str = df.iloc[i].astype(str)
-        if any("거래일" in str(v or "") for v in row_str): # v = 엑셀 한 셀 값 (문자/숫자/NaN 다 들어옴)
+        if any("거래일" in str(v or "") for v in df.iloc[i].astype(str)):
             header_row = i
             break
-
+ 
     if header_row is None:
         return []
-
-    df.columns = df.iloc[header_row]
-    df = df.iloc[header_row + 1:].reset_index(drop=True)
-
-    def find_col(keys):
-        for c in df.columns:
-            for k in keys:
-                if k in str(c):
-                    return c
+ 
+    # ✅ ② 날짜가 처음 등장하는 행 = 데이터 시작점 (동적 감지)
+    #       헤더 1줄 → data_start = header_row + 1
+    #       헤더 2줄 → data_start = header_row + 2
+    #       헤더 3줄 → data_start = header_row + 3  자동 처리
+    data_start = None
+    for i in range(header_row + 1, min(header_row + 10, len(df))):
+        m, d = parse_date(df.iloc[i, 0])
+        if m:
+            data_start = i
+            break
+ 
+    if data_start is None:
+        return []
+ 
+    # ✅ ③ 헤더 줄 전체 스캔 → { 키워드: 컬럼위치 } 매핑
+    #       헤더가 몇 줄이든, 어느 줄에 키워드가 있든 위치로 기억
+    col_map = {}
+    for h_idx in range(header_row, data_start):
+        for col_idx, val in enumerate(df.iloc[h_idx]):
+            v = str(val).strip()
+            if v and v != "nan":
+                col_map[v] = col_idx
+ 
+    # ✅ ④ 키워드로 컬럼 위치(인덱스) 찾기
+    def find_col_idx(keys):
+        for k in keys:
+            for col_name, idx in col_map.items():
+                if k in col_name:
+                    return idx
         return None
-    
-    c_date  = find_col(["거래일","거래일자","일자","날짜"])
-    c_type  = find_col(["구분","적요명","내용","거래종류","거래명","거래구분","거래종류"])
-    c_stock = find_col(["종목","종목명","종목명(거래상대명)","종목명(상대처)"])
-    c_qty   = find_col(["수량","거래수량","거래좌수"])
-    c_price = find_col(["단가","가격","거래단가","기준가"])
-    c_net   = find_col(["금액","거래금액","입출금액","입금/입고/매도","출금/출고/매수","거래대금","입출금액"])
-    c_fee   = find_col(["수수료/Fee","수수료"])
-    c_tax   = find_col(["tax","세금","제세금","거래세/농특세","거래세"])
-
+ 
+    ci_date  = find_col_idx(["거래일", "거래일자", "일자", "날짜"])
+    ci_type  = find_col_idx(["구분", "적요명", "내용", "거래종류", "거래명", "거래구분"])
+    ci_stock = find_col_idx(["종목", "종목명"])
+    ci_qty   = find_col_idx(["수량", "거래수량", "거래좌수"])
+    ci_price = find_col_idx(["단가", "가격", "거래단가", "기준가"])
+    ci_net   = find_col_idx(["금액", "거래금액", "입출금액", "정산금액", "거래대금"])
+    ci_fee   = find_col_idx(["수수료/Fee", "수수료"])
+    ci_tax   = find_col_idx(["tax", "세금", "제세금", "거래세/농특세", "거래세"])
+ 
+    # ✅ ⑤ 날짜 없는 보조 데이터줄을 바로 위 행(buffer)에 병합
+    #       날짜 있는 행: 새 거래 시작 → buffer 교체
+    #       날짜 없는 행: buffer의 빈 위치(None/""/0)만 채워넣기
+    raw_rows = df.iloc[data_start:].reset_index(drop=True)
+    merged_rows = []
+    buffer = None
+ 
+    for _, r in raw_rows.iterrows():
+        m, d = parse_date(r.iloc[0])
+        if m:
+            if buffer is not None:
+                merged_rows.append(buffer)
+            buffer = list(r)
+        else:
+            if buffer is not None:
+                for col_idx, v in enumerate(r):
+                    if col_idx >= len(buffer):
+                        continue
+                    bv = buffer[col_idx]
+                    is_empty = (bv is None or str(bv).strip() in ["", "nan", "0"])
+                    if is_empty and str(v).strip() not in ["", "nan", "0"]:
+                        buffer[col_idx] = v
+ 
+    if buffer is not None:
+        merged_rows.append(buffer)
+ 
+    # ✅ ⑥ 컬럼명 대신 위치 인덱스로 값 꺼내기
+    def get(r, ci):
+        return r[ci] if ci is not None and ci < len(r) else None
+ 
     trades = []
-
-    for _, r in df.iterrows():
+    for r in merged_rows:
         try:
-            m, d = parse_date(r.get(c_date))
+            m, d = parse_date(get(r, ci_date))
             if not m:
                 continue
-
-            trade_type = clean(r.get(c_type))
-            stock = clean(r.get(c_stock)).strip()
-
-            qty = to_int(r.get(c_qty))
-            price = to_int(r.get(c_price))
-            net = to_int(r.get(c_net))
-            fee = to_int(r.get(c_fee))
-            tax = to_int(r.get(c_tax))
-
+ 
+            trade_type = clean(get(r, ci_type))
+            stock      = clean(get(r, ci_stock)).strip()
+            qty        = to_int(get(r, ci_qty))
+            price      = to_int(get(r, ci_price))
+            net        = to_int(get(r, ci_net))
+            fee        = to_int(get(r, ci_fee))
+            tax        = to_int(get(r, ci_tax))
+ 
             if not trade_type:
                 continue
-
+ 
             trades.append({
-                "month": m,
-                "day": d,
-                "type": trade_type,
-                "stock": stock,
-                "qty": qty,
-                "price": price,
-                "net": net,
-                "fee": fee,
-                "tax": tax
+                "month": m, "day": d, "type": trade_type,
+                "stock": stock, "qty": qty, "price": price,
+                "net": net, "fee": fee, "tax": tax
             })
-
         except:
             continue
-
+ 
     return trades
-    
-# ─────────────────────────────
-# 🔥 거래처 자동 매핑 함수
-# ─────────────────────────────
-def get_broker_code(stock, broker_map, default_code):
-    return broker_map.get(stock, default_code)
 
 # ─────────────────────────────
 # 전표 생성
