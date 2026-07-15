@@ -2,8 +2,8 @@ import streamlit as st
 import pandas as pd
 import openpyxl
 import io, tempfile, re
-import traceback                        # 파이썬 에러 찾기
-from openpyxl.styles import PatternFill # 엑셀 헤더 노란색으로 칠하기
+import traceback
+from openpyxl.styles import PatternFill
 
 st.set_page_config(page_title="더존 전표 변환기", page_icon="📊", layout="wide")
 st.title("📊 더존 위하고 전표 변환기")
@@ -40,9 +40,10 @@ def parse_date(v):
         return d.month, d.day
     except:
         return None, None
-        
+
+
 # ─────────────────────────────
-# 🔥 거래유형 정규화 (핵심 추가)
+# 거래유형 정규화
 # ─────────────────────────────
 def normalize_trade_type(ttype):
     ttype = str(ttype)
@@ -58,22 +59,24 @@ def normalize_trade_type(ttype):
     elif "입금" in ttype or "이체입금" in ttype:
         return "Credit"
     elif "출금" in ttype and (
-                              "은행이체" in ttype or
-                              "타사이체" in ttype or
-                              "이체출금" in ttype
-                             ):
+        "은행이체" in ttype or
+        "타사이체" in ttype or
+        "이체출금" in ttype
+    ):
         return "Debit"
-        
+
     return None
+
 
 # ─────────────────────────────
 # row (엑셀 10컬럼 기준)
 # ─────────────────────────────
 def row(m, d, div, acct_code, acct_name, cp_code, cp_name, memo, dr, cr):
-     return [m, d, div, acct_code, acct_name, cp_code, cp_name, memo, dr, cr]
-    
+    return [m, d, div, acct_code, acct_name, cp_code, cp_name, memo, dr, cr]
+
+
 # ─────────────────────────────
-# 종목명 추출 함수 추가
+# 종목명 추출
 # ─────────────────────────────
 def extract_stock_name(name):
     name = str(name).replace(" ", "").strip()
@@ -113,7 +116,6 @@ def get_broker_info(stock, broker_map):
         return "", stock         # 미매핑
 
 
-    
 # ─────────────────────────────
 # HANTOO 파서 (자동 컬럼 매칭)
 # ─────────────────────────────
@@ -128,17 +130,17 @@ def get_broker_info(stock, broker_map):
 #       → 거래단가/세금 등 2번째 줄 값도 누락 없이 흡수
 # ─────────────────────────────
 def parse_hantoo_sheet(df):
- 
+
     # ① "거래일" 키워드가 있는 첫 번째 헤더 행 찾기
     header_row = None
     for i in range(min(15, len(df))):
         if any("거래일" in str(v or "") for v in df.iloc[i].astype(str)):
             header_row = i
             break
- 
+
     if header_row is None:
         return []
- 
+
     # 날짜가 처음 등장하는 행 = 데이터 시작점 (동적 감지)
     #       헤더 1줄 → data_start = header_row + 1
     #       헤더 2줄 → data_start = header_row + 2
@@ -149,10 +151,10 @@ def parse_hantoo_sheet(df):
         if m:
             data_start = i
             break
- 
+
     if data_start is None:
         return []
- 
+
     # 헤더 줄 전체 스캔 → { 키워드: 컬럼위치 } 매핑
     #       헤더가 몇 줄이든, 어느 줄에 키워드가 있든 위치로 기억
     col_map = {}
@@ -161,7 +163,7 @@ def parse_hantoo_sheet(df):
             v = str(val).strip()
             if v and v != "nan":
                 col_map[v] = col_idx
- 
+
     # 키워드로 컬럼 위치(인덱스) 찾기
     def find_col_idx(keys):
         for k in keys:
@@ -169,7 +171,7 @@ def parse_hantoo_sheet(df):
                 if k in col_name:
                     return idx
         return None
- 
+
     ci_date  = find_col_idx(["거래일", "거래일자", "일자", "날짜"])
     ci_type  = find_col_idx(["구분", "적요명", "내용", "거래종류", "거래명", "거래구분"])
     ci_stock = find_col_idx(["종목", "종목명"])
@@ -178,14 +180,14 @@ def parse_hantoo_sheet(df):
     ci_net   = find_col_idx(["금액", "거래금액", "입출금액", "정산금액", "거래대금"])
     ci_fee   = find_col_idx(["수수료/Fee", "수수료"])
     ci_tax   = find_col_idx(["tax", "세금", "제세금", "거래세/농특세", "거래세"])
- 
+
     # 날짜 없는 보조 데이터줄을 바로 위 행(buffer)에 병합
     #       날짜 있는 행: 새 거래 시작 → buffer 교체
     #       날짜 없는 행: buffer의 빈 위치(None/""/0)만 채워넣기
     raw_rows = df.iloc[data_start:].reset_index(drop=True)
     merged_rows = []
     buffer = None
- 
+
     for _, r in raw_rows.iterrows():
         m, d = parse_date(r.iloc[0])
         if m:
@@ -201,21 +203,21 @@ def parse_hantoo_sheet(df):
                     is_empty = (bv is None or str(bv).strip() in ["", "nan", "0"])
                     if is_empty and str(v).strip() not in ["", "nan", "0"]:
                         buffer[col_idx] = v
- 
+
     if buffer is not None:
         merged_rows.append(buffer)
- 
+
     # 컬럼명 대신 위치 인덱스로 값 꺼내기
     def get(r, ci):
         return r[ci] if ci is not None and ci < len(r) else None
- 
+
     trades = []
     for idx, r in enumerate(merged_rows):
         try:
             m, d = parse_date(get(r, ci_date))
             if not m:
                 continue
- 
+
             trade_type = clean(get(r, ci_type))
             stock      = clean(get(r, ci_stock)).strip()
             qty        = to_int(get(r, ci_qty))
@@ -223,16 +225,16 @@ def parse_hantoo_sheet(df):
             net        = to_int(get(r, ci_net))
             fee        = to_int(get(r, ci_fee))
             tax        = to_int(get(r, ci_tax))
- 
+
             if not trade_type:
                 continue
- 
+
             trades.append({
                 "month": m, "day": d, "type": trade_type,
                 "stock": stock, "qty": qty, "price": price,
                 "net": net, "fee": fee, "tax": tax
             })
-            
+
         except Exception as e:
             st.error(f"❌ parse_hantoo_sheet 오류")
             st.write("행번호:", idx)
@@ -242,8 +244,9 @@ def parse_hantoo_sheet(df):
             st.write(str(e))
             st.code(traceback.format_exc())
             continue
- 
+
     return trades
+
 
 # ─────────────────────────────
 # 전표 생성
@@ -253,93 +256,78 @@ def process_trades(trades, broker_map, broker_code, deposit, short_inv, interest
     rows = []
 
     for idx, t in enumerate(trades):
-        m = t["month"]
-        d = t["day"]
-        type = t["type"]      # 구분, 적요명,내용,거래종류
-        stock = t["stock"]    # 종목명
-        stock_name = extract_stock_name(stock)    #매핑용 거래처명
-        ttype = normalize_trade_type(t["type"])
-        qty = t["qty"]        # 수량
-        price = t["price"]    # 단가
-        net = t["net"]        # 거래금액
-        fee = t["fee"]        # 거래수수료
-        tax = t["tax"]        # 세금과공과
+        try:
+            m = t["month"]
+            d = t["day"]
+            type = t["type"]      # 구분, 적요명,내용,거래종류
+            stock = t["stock"]    # 종목명
+            stock_name = extract_stock_name(stock)    # 매핑용 거래처명
+            ttype = normalize_trade_type(t["type"])
+            qty = t["qty"]        # 수량
+            price = t["price"]    # 단가
+            net = t["net"]        # 거래금액
+            fee = t["fee"]        # 거래수수료
+            tax = t["tax"]        # 세금과공과
 
-        # 🔥 여기!!!! (무조건 이 위치)
-        ttype = normalize_trade_type(t["type"])
+            if not ttype:
+                continue
 
-        if not ttype:
+            # 🔥 매핑 적용
+            cp_code, cp_name = get_broker_info(stock_name, broker_map)
+
+            # 🔥 디버깅 (필요하면 주석 해제)
+            # st.write("매핑확인:", stock, "→", cp_code, cp_name)
+
+            # 매도
+            if ttype == "SELL":
+                memo = f"{stock_name}({qty}주*{price})매도"
+                rows.append(row(m, d, "차변", deposit, "예치금", broker_code, "", memo, net, 0))
+                rows.append(row(m, d, "대변", short_inv, "단기매매증권", cp_code, cp_name, memo, 0, qty * price))
+
+            # 매수
+            elif ttype == "BUY":
+                cost = qty * price
+                memo = f"{stock_name}({qty}주*{price})매수"
+                rows.append(row(m, d, "차변", short_inv, "단기매매증권", cp_code, cp_name, memo, cost, 0))
+                rows.append(row(m, d, "차변", 82800, "증권수수료", cp_code, cp_name, "매수수수료", fee, 0))
+                rows.append(row(m, d, "대변", deposit, "예치금", broker_code, "", memo, 0, cost - fee))
+
+            # 예탁금이용료
+            elif ttype == "INTEREST":
+                memo = "예탁금이용료"
+                rows.append(row(m, d, "차변", deposit, "예치금", broker_code, "", memo, net, 0))
+                rows.append(row(m, d, "대변", interest_income, "이자수익(금융)", broker_code, stock, memo, 0, net))
+
+            # 공모주입고
+            elif ttype == "StockCredit":
+                cost = qty * price
+                memo = f"{stock_name}({qty}주*{price})입고"
+                rows.append(row(m, d, "차변", short_inv, "단기매매증권", cp_code, cp_name, memo, cost, 0))
+                rows.append(row(m, d, "대변", 13100, "선급금", cp_code, cp_name, memo, 0, cost))
+
+            # 이체입금
+            elif ttype == "Credit":
+                memo = f"{type}"
+                rows.append(row(m, d, "차변", deposit, "예치금", broker_code, "", memo, net, 0))
+                rows.append(row(m, d, "대변", deposit, "예치금", "", "미등록거래처", memo, 0, net))
+
+            # 이체출금
+            elif ttype == "Debit":
+                memo = f"{type}"
+                rows.append(row(m, d, "차변", deposit, "예치금", "", "미등록거래처", memo, 0, net))
+                rows.append(row(m, d, "대변", deposit, "예치금", broker_code, "", memo, net, 0))
+
+        except Exception as e:
+            st.error(f"❌ process_trades 오류")
+            st.write("거래번호:", idx)
+            st.write("거래데이터:")
+            st.write(t)
+            st.write(str(e))
+            st.code(traceback.format_exc())
             continue
 
-        cp_code, cp_name = get_broker_info(stock_name, broker_map)
-
-        # 기존 로직 그대로
-
-    except Exception as e:
-
-        st.error(f"❌ process_trades 오류")
-
-        st.write("거래번호:", idx)
-
-        st.write("거래데이터:")
-
-        st.write(t)
-
-        st.write(str(e))
-
-        st.code(traceback.format_exc())
-        
-        # 🔥 매핑 적용
-        cp_code, cp_name = get_broker_info(stock_name, broker_map)
-
-        # 🔥 디버깅 (필요하면 주석 해제)
-        # st.write("매핑확인:", stock, "→", cp_code, cp_name)
-
-        # 매도
-        if ttype == "SELL":
-            memo = f"{stock_name}({qty}주*{price})매도"
-
-            rows.append(row(m,d,"차변",deposit,"예치금",broker_code,"",memo,net,0))
-            rows.append(row(m,d,"대변",short_inv,"단기매매증권",cp_code,cp_name,memo,0,qty*price))
-
-        # 매수
-        elif ttype == "BUY":
-            cost = qty * price
-            memo = f"{stock_name}({qty}주*{price})매수"
-
-            rows.append(row(m,d,"차변",short_inv,"단기매매증권",cp_code,cp_name,memo,cost,0))
-            rows.append(row(m,d,"차변",82800,"증권수수료",cp_code,cp_name,"매수수수료",fee,0))
-            rows.append(row(m,d,"대변",deposit,"예치금",broker_code,"",memo,0,cost-fee))
-
-        # 예탁금이용료
-        elif ttype == "INTEREST":
-            memo = "예탁금이용료"
-        
-            rows.append(row(m,d,"차변",deposit,"예치금",broker_code,"",memo,net,0))
-            rows.append(row(m,d,"대변",interest_income,"이자수익(금융)",broker_code,stock,memo,0,net))
-
-        # 공모주입고
-        elif ttype == "StockCredit":
-            cost = qty * price
-            memo = f"{stock_name}({qty}주*{price})입고"
-
-            rows.append(row(m,d,"차변",short_inv,"단기매매증권",cp_code,cp_name,memo,cost,0))
-            rows.append(row(m,d,"대변",13100,"선급금",cp_code,cp_name,memo,0,cost))
-    
-        # 이체입금
-        elif ttype == "Credit":
-            memo = f"{type}"
-
-            rows.append(row(m,d,"차변",deposit,"예치금",broker_code,"",memo,net,0))
-            rows.append(row(m,d,"대변",deposit,"예치금","","미등록거래처",memo,0,net))
-    
-        # 이체출금
-        elif ttype == "Debit":
-            memo = f"{type}"
-
-            rows.append(row(m,d,"차변",deposit,"예치금","","미등록거래처",memo,0,net))
-            rows.append(row(m,d,"대변",deposit,"예치금",broker_code,"",memo,net,0))
     return rows
+
 
 # ─────────────────────────────
 # Excel 생성
@@ -349,26 +337,23 @@ def create_excel(rows):
     ws = wb.active
 
     header = [
-        "1.월","2.일","3.구분",
-        "4.계정과목코드","5.계정과목명",
-        "6.거래처코드","7.거래처명",
-        "8.적요명","9.차변(출금)","10.대변(입금)"
+        "1.월", "2.일", "3.구분",
+        "4.계정과목코드", "5.계정과목명",
+        "6.거래처코드", "7.거래처명",
+        "8.적요명", "9.차변(출금)", "10.대변(입금)"
     ]
 
     ws.append(header)
 
-    # 🔥 노란색 스타일
     yellow_fill = PatternFill(
-        start_color="FFF59D",  # 연노랑
+        start_color="FFF59D",
         end_color="FFF59D",
         fill_type="solid"
     )
 
-    # 헤더 스타일 적용
     for col in range(1, len(header) + 1):
         ws.cell(row=1, column=col).fill = yellow_fill
 
-    # 데이터 입력
     for r in rows:
         ws.append(r)
 
@@ -377,43 +362,34 @@ def create_excel(rows):
     bio.seek(0)
     return bio
 
+
 # ─────────────────────────────
 # UI
 # ─────────────────────────────
-# 🔥 예치금 (사용자 입력)
 deposit = st.number_input("예치금", min_value=10000, max_value=99999, step=1, help="예: 12500")
-# 🔥 단기매매증권 (사용자 입력)
 short_inv = st.number_input("단기매매증권", min_value=10000, max_value=99999, step=1, help="예: 10700")
-# 🔥 이자수익(금융) (사용자 입력)
 interest_income = st.number_input("이자수익(금융)", min_value=10000, max_value=99999, step=1, help="예: 42000")
-# 🔥 배당금수익 (사용자 입력)
 dividend_income = st.number_input("배당금수익", min_value=10000, max_value=99999, step=1, help="예: 41800")
 
-
-# 🔥 거래처 매핑 엑셀
 broker_file = st.file_uploader("거래처 매핑 엑셀 (이름 / 코드)", type=["xlsx"])
 
-# 🔥 거래처코드(금융사) (사용자 입력)
 broker_code = st.number_input("증권사코드", min_value=90001, max_value=99999, step=1, help="예: 98001")
 
-# 🔥 엑셀 파일 업로드
 uploaded = st.file_uploader("엑셀 업로드")
 
 if uploaded:
-
     if st.button("변환 실행"):
 
         broker_map = load_broker_map(broker_file) if broker_file else {}
-
         file_bytes = uploaded.getvalue()
 
         try:
             xl = pd.ExcelFile(io.BytesIO(file_bytes))
         except Exception as e:
-                st.error("❌ 엑셀 읽기 실패")
-                st.write(str(e))
-                st.code(traceback.format_exc())
-                st.stop()
+            st.error("❌ 엑셀 읽기 실패")
+            st.write(str(e))
+            st.code(traceback.format_exc())
+            st.stop()
 
         all_trades = []
 
@@ -423,30 +399,22 @@ if uploaded:
             all_trades.extend(trades)
 
         st.write("총 trades:", len(all_trades))
-        # 미리보기!!
         st.write(all_trades)
-#                                                      거래처코드,   예치금,  단기매매증권,  이자수익,        배당금수익
+
         rows = process_trades(all_trades, broker_map, broker_code, deposit, short_inv, interest_income, dividend_income)
 
-        preview_df = pd.DataFrame(rows,columns=["월","일","구분","계정과목코드","계정과목명","거래처코드",
-                                                "거래처명","적요명","차변","대변"]
-                                 )
+        preview_df = pd.DataFrame(
+            rows,
+            columns=["월", "일", "구분", "계정과목코드", "계정과목명", "거래처코드",
+                     "거래처명", "적요명", "차변", "대변"]
+        )
 
-st.subheader("📋 전표 미리보기")
+        st.subheader("📋 전표 미리보기")
+        st.dataframe(preview_df, use_container_width=True, height=500)
 
-st.dataframe(
-    preview_df,
-    use_container_width=True,
-    height=500
-)
         if not rows:
             st.error("❌ 변환 데이터 없음")
         else:
             out = create_excel(rows)
-
             st.success("완료")
-            st.download_button(
-                "다운로드",
-                data=out,
-                file_name="result.xlsx"
-            )
+            st.download_button("다운로드", data=out, file_name="result.xlsx")
