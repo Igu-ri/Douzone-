@@ -288,17 +288,17 @@ def process_trades(trades, broker_map, broker_code, deposit, short_inv, interest
 
             # 매도
             if ttype == "SELL":
-                memo = f"{stock_name}({qty}주*{price})매도{memo_suffix}"   # 🔥 태그 부착: 예) ...매도#한투6716
+                memo = f"{stock_name}({qty}주*{price:,})매도{memo_suffix}"   # 🔥 태그 부착 + 단가 천단위 콤마: 예) ...매도#한투6716
                 rows.append(row(m, d, "차변", deposit, "예치금", broker_code, "", memo, net, 0))
                 rows.append(row(m, d, "대변", short_inv, "단기매매증권", cp_code, cp_name, memo, 0, qty * price))
 
             # 매수
             elif ttype == "BUY":
                 cost = qty * price
-                memo = f"{stock_name}({qty}주*{price})매수{memo_suffix}"   # 🔥 태그 부착: 예) ...매수#한투6716
+                memo = f"{stock_name}({qty}주*{price:,})매수{memo_suffix}"   # 🔥 태그 부착 + 단가 천단위 콤마: 예) ...매수#한투6716
                 rows.append(row(m, d, "차변", short_inv, "단기매매증권", cp_code, cp_name, memo, cost, 0))
                 rows.append(row(m, d, "차변", 82800, "증권수수료", cp_code, cp_name, "매수수수료", fee, 0))
-                rows.append(row(m, d, "대변", deposit, "예치금", broker_code, "", memo, 0, cost + fee))
+                rows.append(row(m, d, "대변", deposit, "예치금", broker_code, "", memo, 0, cost - fee))
 
             # 예탁금이용료
             elif ttype == "INTEREST":
@@ -309,7 +309,7 @@ def process_trades(trades, broker_map, broker_code, deposit, short_inv, interest
             # 공모주입고
             elif ttype == "StockCredit":
                 cost = qty * price
-                memo = f"{stock_name}({qty}주*{price})입고"
+                memo = f"{stock_name}({qty}주*{price:,})입고"
                 rows.append(row(m, d, "차변", short_inv, "단기매매증권", cp_code, cp_name, memo, cost, 0))
                 rows.append(row(m, d, "대변", 13100, "선급금", cp_code, cp_name, memo, 0, cost))
 
@@ -364,6 +364,11 @@ def create_excel(rows):
 
     for r in rows:
         ws.append(r)
+
+    # 🔥 9.차변(출금), 10.대변(입금) 컬럼에 천단위 콤마 서식 적용 (예: 1000 → 1,000)
+    for r_idx in range(2, ws.max_row + 1):
+        ws.cell(row=r_idx, column=9).number_format = '#,##0'
+        ws.cell(row=r_idx, column=10).number_format = '#,##0'
 
     bio = io.BytesIO()
     wb.save(bio)
