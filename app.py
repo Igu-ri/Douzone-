@@ -165,7 +165,15 @@ def parse_hantoo_sheet(df):
                 col_map[v] = col_idx
 
     # 키워드로 컬럼 위치(인덱스) 찾기
+    #       🔥 수정: "정확히 일치"를 먼저 찾고, 없을 때만 "부분 일치"로 넘어감
+    #       예) "구분" 키워드가 "대출구분" 같은 엉뚱한 컬럼에 먼저 걸리는 걸 방지
     def find_col_idx(keys):
+        # 1순위: 컬럼명이 키워드와 정확히 같은 경우
+        for k in keys:
+            for col_name, idx in col_map.items():
+                if k == col_name:
+                    return idx
+        # 2순위: 정확히 일치하는 게 없을 때만 부분 일치 허용
         for k in keys:
             for col_name, idx in col_map.items():
                 if k in col_name:
