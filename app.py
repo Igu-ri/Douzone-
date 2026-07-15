@@ -259,8 +259,8 @@ def parse_hantoo_sheet(df):
 # ─────────────────────────────
 # 전표 생성
 # ─────────────────────────────
-#                                      거래처코드,   예치금,  단기매매증권,  이자수익,        배당금수익
-def process_trades(trades, broker_map, broker_code, deposit, short_inv, interest_income, dividend_income):
+#                                      거래처코드,   예치금,  단기매매증권,  이자수익,        배당금수익,    적요명 뒤에 붙일 태그
+def process_trades(trades, broker_map, broker_code, deposit, short_inv, interest_income, dividend_income, memo_suffix=""):
     rows = []
 
     for idx, t in enumerate(trades):
@@ -288,14 +288,14 @@ def process_trades(trades, broker_map, broker_code, deposit, short_inv, interest
 
             # 매도
             if ttype == "SELL":
-                memo = f"{stock_name}({qty}주*{price})매도"
+                memo = f"{stock_name}({qty}주*{price})매도{memo_suffix}"   # 🔥 태그 부착: 예) ...매도#한투6716
                 rows.append(row(m, d, "차변", deposit, "예치금", broker_code, "", memo, net, 0))
                 rows.append(row(m, d, "대변", short_inv, "단기매매증권", cp_code, cp_name, memo, 0, qty * price))
 
             # 매수
             elif ttype == "BUY":
                 cost = qty * price
-                memo = f"{stock_name}({qty}주*{price})매수"
+                memo = f"{stock_name}({qty}주*{price})매수{memo_suffix}"   # 🔥 태그 부착: 예) ...매수#한투6716
                 rows.append(row(m, d, "차변", short_inv, "단기매매증권", cp_code, cp_name, memo, cost, 0))
                 rows.append(row(m, d, "차변", 82800, "증권수수료", cp_code, cp_name, "매수수수료", fee, 0))
                 rows.append(row(m, d, "대변", deposit, "예치금", broker_code, "", memo, 0, cost - fee))
@@ -383,6 +383,10 @@ broker_file = st.file_uploader("거래처 매핑 엑셀 (이름 / 코드)", type
 
 broker_code = st.number_input("증권사코드", min_value=90001, max_value=99999, step=1, help="예: 98001")
 
+# 🔥 적요명 뒤에 붙일 태그 (사용자 입력)
+#    예) memo_tag = "#한투6716" 입력 시 → "LG(6주*175800)매수#한투6716"
+memo_tag = st.text_input("적요 뒤에 붙일 태그 (선택)", value="", help="예: #한투6716")
+
 uploaded = st.file_uploader("엑셀 업로드")
 
 if uploaded:
@@ -409,7 +413,7 @@ if uploaded:
         st.write("총 trades:", len(all_trades))
         st.write(all_trades)
 
-        rows = process_trades(all_trades, broker_map, broker_code, deposit, short_inv, interest_income, dividend_income)
+        rows = process_trades(all_trades, broker_map, broker_code, deposit, short_inv, interest_income, dividend_income, memo_tag)
 
         preview_df = pd.DataFrame(
             rows,
