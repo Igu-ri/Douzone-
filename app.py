@@ -298,7 +298,7 @@ def process_trades(trades, broker_map, broker_code, deposit, short_inv, interest
                 memo = f"{stock_name}({qty}주*{price})매수{memo_suffix}"   # 🔥 태그 부착: 예) ...매수#한투6716
                 rows.append(row(m, d, "차변", short_inv, "단기매매증권", cp_code, cp_name, memo, cost, 0))
                 rows.append(row(m, d, "차변", 82800, "증권수수료", cp_code, cp_name, "매수수수료", fee, 0))
-                rows.append(row(m, d, "대변", deposit, "예치금", broker_code, "", memo, 0, cost - fee))
+                rows.append(row(m, d, "대변", deposit, "예치금", broker_code, "", memo, 0, cost + fee))
 
             # 예탁금이용료
             elif ttype == "INTEREST":
