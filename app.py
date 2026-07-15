@@ -234,22 +234,14 @@ def parse_hantoo_sheet(df):
             })
             
         except Exception as e:
-
-        st.error(f"❌ parse_hantoo_sheet 오류")
-
-        st.write("행번호:", idx)
-
-        st.write("원본 데이터:")
-
-        st.write(r)
-
-        st.write("에러:")
-
-        st.write(str(e))
-
-        st.code(traceback.format_exc())
-
-        continue
+            st.error(f"❌ parse_hantoo_sheet 오류")
+            st.write("행번호:", idx)
+            st.write("원본 데이터:")
+            st.write(r)
+            st.write("에러:")
+            st.write(str(e))
+            st.code(traceback.format_exc())
+            continue
  
     return trades
 
